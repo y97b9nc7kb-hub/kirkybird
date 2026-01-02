@@ -2,22 +2,38 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Flappy Bird</title>
-<style>
-  body {
-    margin: 0;
-    background: #70c5ce;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-family: Arial, sans-serif;
-  }
+<title>Kirky Bird</title>
 
-  canvas {
-    background: #70c5ce;
-    border: 2px solid black;
-  }
+<style>
+body {
+  margin: 0;
+  position: relative;
+  background-image: url("filler.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.25);
+  z-index: 0;
+}
+
+canvas {
+  position: relative;
+  z-index: 1;
+  border: 2px solid black;
+  box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+  border-radius: 6px;
+}
 </style>
 </head>
 <body>
@@ -31,11 +47,13 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// Bird image
+// Images
 const birdImg = new Image();
 birdImg.src = "bird.png";
 
-// Game Over image
+const bgImg = new Image();
+bgImg.src = "background.png";
+
 const overImg = new Image();
 overImg.src = "over.png";
 
@@ -44,7 +62,14 @@ const music = document.getElementById("music");
 const pewSound = document.getElementById("pew");
 
 // Bird
-let bird = { x: 80, y: 250, width: 60, height: 45, velocity: 0 };
+let bird = {
+  x: 80,
+  y: 250,
+  width: 60,
+  height: 45,
+  velocity: 0
+};
+
 const gravity = 0.4;
 const flapStrength = -8;
 
@@ -53,28 +78,46 @@ let pipes = [];
 const pipeWidth = 60;
 const gap = 180;
 
+// Game state
 let frame = 0;
 let score = 0;
 let gameStarted = false;
 let gameOver = false;
-let pewPlayed = false; // tracks if pew has played for this game over
+let adminMode = false;
+
+// Admin targeting
+let targetGapY = null;
+
+// Speed scaling
+let timeScale = 1;
 
 // Controls
 document.addEventListener("keydown", e => {
-  if (e.code === "Space") { e.preventDefault(); handleSpace(); }
-});
-document.addEventListener("click", handleSpace);
+  if (e.code === "Space") {
+    e.preventDefault();
+    handleInput();
+  }
 
-function handleSpace() {
+  if (e.code === "KeyQ") {
+    adminMode = !adminMode;
+    timeScale = adminMode ? 2.5 : 1;
+    targetGapY = null;
+    console.log("ADMIN MODE:", adminMode);
+  }
+});
+
+document.addEventListener("click", handleInput);
+
+function handleInput() {
   if (!gameStarted) {
     gameStarted = true;
     music.volume = 0.5;
-    music.play().catch(err => console.log("Music blocked:", err));
+    music.play().catch(() => {});
   }
 
-  if (!gameOver) {
+  if (!gameOver && !adminMode) {
     bird.velocity = flapStrength;
-  } else {
+  } else if (gameOver) {
     resetGame();
   }
 }
@@ -86,64 +129,87 @@ function resetGame() {
   frame = 0;
   score = 0;
   gameOver = false;
-  pewPlayed = false; // reset for next Game Over
+  targetGapY = null;
 
-  // Restart music
   music.currentTime = 0;
-  music.play().catch(err => console.log("Music blocked:", err));
+  music.play().catch(() => {});
 }
 
 function createPipe() {
   const topHeight = Math.random() * 220 + 60;
-  pipes.push({ x: canvas.width, top: topHeight, bottom: canvas.height - topHeight - gap, passed: false });
+  pipes.push({
+    x: canvas.width,
+    top: topHeight,
+    bottom: canvas.height - topHeight - gap,
+    passed: false
+  });
 }
 
 function update() {
   if (!gameStarted || gameOver) return;
 
-  frame++;
-  bird.velocity += gravity;
-  bird.y += bird.velocity;
+  frame += timeScale;
 
-  if (frame % 90 === 0) createPipe();
+  // Admin autopilot (linear targeting)
+  if (adminMode && targetGapY !== null) {
+    const centerBird = bird.y + bird.height / 2;
+    const diff = targetGapY - centerBird;
+    bird.y += diff * 0.15 * timeScale;
+    bird.velocity = 0;
+  } else {
+    bird.velocity += gravity * timeScale;
+    bird.y += bird.velocity * timeScale;
+  }
+
+  if (frame % 90 < timeScale) createPipe();
 
   for (let pipe of pipes) {
-    pipe.x -= 2;
+    pipe.x -= 2 * timeScale;
 
     if (!pipe.passed && pipe.x + pipeWidth < bird.x) {
       pipe.passed = true;
       score++;
+
+      if (adminMode) {
+        targetGapY = pipe.top + gap / 2;
+      }
     }
 
-    if (checkCollision(pipe)) {
+    if (!adminMode && checkCollision(pipe)) {
       triggerDeath();
-      return; // exit to prevent multiple triggers
+      return;
     }
   }
 
-  if (bird.y + bird.height > canvas.height || bird.y < 0) {
+  if (!adminMode && (bird.y < 0 || bird.y + bird.height > canvas.height)) {
     triggerDeath();
   }
 }
 
 function checkCollision(pipe) {
-  return bird.x < pipe.x + pipeWidth &&
-         bird.x + bird.width > pipe.x &&
-         (bird.y < pipe.top || bird.y + bird.height > canvas.height - pipe.bottom);
+  return (
+    bird.x < pipe.x + pipeWidth &&
+    bird.x + bird.width > pipe.x &&
+    (bird.y < pipe.top ||
+     bird.y + bird.height > canvas.height - pipe.bottom)
+  );
 }
 
 function triggerDeath() {
   if (gameOver) return;
 
   gameOver = true;
-
-  // Stop music
   music.pause();
   music.currentTime = 0;
+
+  pewSound.currentTime = 0;
+  pewSound.play().catch(() => {});
 }
 
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  ctx.drawImage(bgImg,0,0,canvas.width,canvas.height);
 
   // Bird
   ctx.save();
@@ -164,28 +230,21 @@ function draw() {
   ctx.font = "24px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 
-  // Start screen
+  if (adminMode) {
+    ctx.fillStyle = "red";
+    ctx.font = "16px Arial";
+    ctx.fillText("ADMIN MODE", 260, 30);
+  }
+
   if (!gameStarted) {
-    ctx.font = "28px Arial";
+    ctx.font = "26px Arial";
     ctx.fillText("Press SPACE or Click to Start", 30, 300);
   }
 
-  // Game Over screen
   if (gameOver) {
-    const imgWidth = 250;
-    const imgHeight = 100;
-    ctx.drawImage(overImg, (canvas.width - imgWidth)/2, 250, imgWidth, imgHeight);
-
-    ctx.fillStyle = "black";
+    ctx.drawImage(overImg, 75, 250, 250, 100);
     ctx.font = "18px Arial";
     ctx.fillText("Press SPACE or Click to Restart", 60, 370);
-
-    // Play pew sound exactly once when the Game Over image appears
-    if (!pewPlayed) {
-      pewPlayed = true;
-      pewSound.currentTime = 0;
-      pewSound.play().catch(err => console.log("Pew blocked:", err));
-    }
   }
 }
 
@@ -197,6 +256,5 @@ function loop() {
 
 loop();
 </script>
-
 </body>
 </html>
