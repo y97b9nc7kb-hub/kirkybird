@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Bird</title>
+<style>
+  body {
+    margin: 0;
+    background: #70c5ce;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+  }
+
+  canvas {
+    background: #70c5ce;
+    border: 2px solid black;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="400" height="600"></canvas>
+
+<audio id="music" src="music.mp3" loop></audio>
+<audio id="pew" src="pew.mp3" preload="auto"></audio>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// Bird image
+const birdImg = new Image();
+birdImg.src = "bird.png";
+
+// Game Over image
+const overImg = new Image();
+overImg.src = "over.png";
+
+// Audio
+const music = document.getElementById("music");
+const pewSound = document.getElementById("pew");
+
+// Bird
+let bird = { x: 80, y: 250, width: 60, height: 45, velocity: 0 };
+const gravity = 0.4;
+const flapStrength = -8;
+
+// Pipes
+let pipes = [];
+const pipeWidth = 60;
+const gap = 180;
+
+let frame = 0;
+let score = 0;
+let gameStarted = false;
+let gameOver = false;
+let pewPlayed = false; // tracks if pew has played for this game over
+
+// Controls
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); handleSpace(); }
+});
+document.addEventListener("click", handleSpace);
+
+function handleSpace() {
+  if (!gameStarted) {
+    gameStarted = true;
+    music.volume = 0.5;
+    music.play().catch(err => console.log("Music blocked:", err));
+  }
+
+  if (!gameOver) {
+    bird.velocity = flapStrength;
+  } else {
+    resetGame();
+  }
+}
+
+function resetGame() {
+  bird.y = 250;
+  bird.velocity = 0;
+  pipes = [];
+  frame = 0;
+  score = 0;
+  gameOver = false;
+  pewPlayed = false; // reset for next Game Over
+
+  // Restart music
+  music.currentTime = 0;
+  music.play().catch(err => console.log("Music blocked:", err));
+}
+
+function createPipe() {
+  const topHeight = Math.random() * 220 + 60;
+  pipes.push({ x: canvas.width, top: topHeight, bottom: canvas.height - topHeight - gap, passed: false });
+}
+
+function update() {
+  if (!gameStarted || gameOver) return;
+
+  frame++;
+  bird.velocity += gravity;
+  bird.y += bird.velocity;
+
+  if (frame % 90 === 0) createPipe();
+
+  for (let pipe of pipes) {
+    pipe.x -= 2;
+
+    if (!pipe.passed && pipe.x + pipeWidth < bird.x) {
+      pipe.passed = true;
+      score++;
+    }
+
+    if (checkCollision(pipe)) {
+      triggerDeath();
+      return; // exit to prevent multiple triggers
+    }
+  }
+
+  if (bird.y + bird.height > canvas.height || bird.y < 0) {
+    triggerDeath();
+  }
+}
+
+function checkCollision(pipe) {
+  return bird.x < pipe.x + pipeWidth &&
+         bird.x + bird.width > pipe.x &&
+         (bird.y < pipe.top || bird.y + bird.height > canvas.height - pipe.bottom);
+}
+
+function triggerDeath() {
+  if (gameOver) return;
+
+  gameOver = true;
+
+  // Stop music
+  music.pause();
+  music.currentTime = 0;
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Bird
+  ctx.save();
+  ctx.translate(bird.x + bird.width/2, bird.y + bird.height/2);
+  ctx.rotate(bird.velocity * 0.05);
+  ctx.drawImage(birdImg, -bird.width/2, -bird.height/2, bird.width, bird.height);
+  ctx.restore();
+
+  // Pipes
+  ctx.fillStyle = "green";
+  for (let pipe of pipes) {
+    ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+    ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipeWidth, pipe.bottom);
+  }
+
+  // Score
+  ctx.fillStyle = "black";
+  ctx.font = "24px Arial";
+  ctx.fillText("Score: " + score, 10, 30);
+
+  // Start screen
+  if (!gameStarted) {
+    ctx.font = "28px Arial";
+    ctx.fillText("Press SPACE or Click to Start", 30, 300);
+  }
+
+  // Game Over screen
+  if (gameOver) {
+    const imgWidth = 250;
+    const imgHeight = 100;
+    ctx.drawImage(overImg, (canvas.width - imgWidth)/2, 250, imgWidth, imgHeight);
+
+    ctx.fillStyle = "black";
+    ctx.font = "18px Arial";
+    ctx.fillText("Press SPACE or Click to Restart", 60, 370);
+
+    // Play pew sound exactly once when the Game Over image appears
+    if (!pewPlayed) {
+      pewPlayed = true;
+      pewSound.currentTime = 0;
+      pewSound.play().catch(err => console.log("Pew blocked:", err));
+    }
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
