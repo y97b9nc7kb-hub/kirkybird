@@ -153,21 +153,30 @@ let adminMode = false;
 let targetGapY = null;
 let timeScale = 1;
 
-// ------------------ CHEAT CODE ------------------
+// ------------------ CHEAT CODES ------------------
 let cheatSequence = [];
 const cheatCode = ["6","7"];
 
+// ------------------ ADMIN MODE CODE ------------------
+let typedSequence = [];
+const adminWord = "KIRK"; // type this to toggle admin mode
+
 // ------------------ CONTROLS ------------------
 document.addEventListener("keydown", e => {
-  if (e.code === "Space") {
+  const key = e.key.toUpperCase();
+
+  if (key === " ") {
     if (gameOver) restartGame();
     else handleInput();
   }
 
-  if (e.code === "KeyQ") {
+  // Track typed letters for admin
+  typedSequence.push(key);
+  if (typedSequence.slice(-adminWord.length).join("") === adminWord) {
     adminMode = !adminMode;
     timeScale = adminMode ? 2.5 : 1;
     targetGapY = null;
+    typedSequence = [];
   }
 
   // Cheat code in admin mode
@@ -180,7 +189,6 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// Restart with click
 document.addEventListener("click", () => {
   if (gameOver) restartGame();
   else handleInput();
@@ -211,7 +219,7 @@ function triggerEnding() {
   endingTriggered = true;
   cutscenePlaying = true;
   fadeOverlay.classList.add("active");
-  skipButton.style.display = "block"; // show skip button
+  skipButton.style.display = "block";
 
   const fadeInterval = setInterval(() => {
     if (music.volume > 0.02) music.volume -= 0.02;
@@ -296,11 +304,19 @@ function update() {
     triggerDeath();
 }
 
+// ------------------ COLLISION (SMALLER HITBOX) ------------------
 function checkCollision(pipe) {
-  return bird.x < pipe.x + pipeWidth &&
-         bird.x + bird.width > pipe.x &&
-         (bird.y < pipe.top ||
-          bird.y + bird.height > canvas.height - pipe.bottom);
+  const hitbox = {
+    x: bird.x + bird.width * 0.05,
+    y: bird.y + bird.height * 0.05,
+    width: bird.width * 0.9,
+    height: bird.height * 0.9
+  };
+
+  return hitbox.x < pipe.x + pipeWidth &&
+         hitbox.x + hitbox.width > pipe.x &&
+         (hitbox.y < pipe.top ||
+          hitbox.y + hitbox.height > canvas.height - pipe.bottom);
 }
 
 // ------------------ GAME OVER ------------------
