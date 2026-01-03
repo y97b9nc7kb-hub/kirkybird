@@ -23,13 +23,12 @@ body {
 }
 
 canvas {
-  border: 5px solid black;
+  border: 2px solid black;
   box-shadow: 0 12px 35px rgba(0,0,0,0.4);
   border-radius: 6px;
   z-index: 1;
 }
 
-/* Fade overlay for cutscene */
 #fadeOverlay {
   position: fixed;
   inset: 0;
@@ -44,7 +43,6 @@ canvas {
   opacity: 1;
 }
 
-/* Fullscreen cutscene video */
 #endingVideo {
   position: fixed;
   inset: 0;
@@ -56,7 +54,6 @@ canvas {
   background: black;
 }
 
-/* Skip button */
 #skipButton {
   position: fixed;
   top: 20px;
@@ -71,7 +68,6 @@ canvas {
   display: none;
 }
 
-/* Audio slider - horizontal at bottom */
 #audioSlider {
   position: fixed;
   bottom: 20px;
@@ -118,6 +114,7 @@ canvas {
 
 <audio id="music" src="music.mp3" loop></audio>
 <audio id="pew" src="pew.mp3" preload="auto"></audio>
+<audio id="sound41" src="41sound.mp3" preload="auto"></audio>
 
 <script>
 const canvas = document.getElementById("game");
@@ -130,9 +127,11 @@ const audioSlider = document.getElementById("audioSlider");
 const birdImg = new Image(); birdImg.src = "bird.png";
 const bgImg = new Image();   bgImg.src = "background.png";
 const overImg = new Image(); overImg.src = "over.png";
+const img41 = new Image();   img41.src = "41.png";
 
 const music = document.getElementById("music");
 const pewSound = document.getElementById("pew");
+const sound41 = document.getElementById("sound41");
 
 // ------------------ GAME STATE ------------------
 let bird = { x: 80, y: 250, width: 60, height: 45, velocity: 0 };
@@ -154,12 +153,19 @@ let targetGapY = null;
 let timeScale = 1;
 
 // ------------------ CHEAT CODES ------------------
-let cheatSequence = [];
-const cheatCode = ["6","7"];
-
-// ------------------ ADMIN MODE CODE ------------------
 let typedSequence = [];
-const adminWord = "KIRK"; // type this to toggle admin mode
+const adminWord = "KIRK";
+let cheatSequence = [];
+
+const cheatCodes = {
+  "67": 63,
+  "41": 38
+};
+
+// ------------------ 41 IMAGE ------------------
+let img41X = canvas.width;
+let img41Active = false;
+let sound41Played = false;
 
 // ------------------ CONTROLS ------------------
 document.addEventListener("keydown", e => {
@@ -170,7 +176,6 @@ document.addEventListener("keydown", e => {
     else handleInput();
   }
 
-  // Track typed letters for admin
   typedSequence.push(key);
   if (typedSequence.slice(-adminWord.length).join("") === adminWord) {
     adminMode = !adminMode;
@@ -179,12 +184,14 @@ document.addEventListener("keydown", e => {
     typedSequence = [];
   }
 
-  // Cheat code in admin mode
   if (adminMode && "0123456789".includes(e.key)) {
     cheatSequence.push(e.key);
-    if (cheatSequence.slice(-cheatCode.length).join("") === cheatCode.join("")) {
-      score = 63;
-      cheatSequence = [];
+    for (const code in cheatCodes) {
+      if (cheatSequence.slice(-code.length).join("") === code) {
+        score = cheatCodes[code];
+        cheatSequence = [];
+        break;
+      }
     }
   }
 });
@@ -236,7 +243,6 @@ function triggerEnding() {
   }, 3000);
 }
 
-// Skip cutscene
 skipButton.addEventListener("click", () => {
   if (!cutscenePlaying) return;
 
@@ -268,6 +274,7 @@ endingVideo.addEventListener("ended", () => {
 audioSlider.addEventListener("input", () => {
   music.volume = audioSlider.value;
   endingVideo.volume = audioSlider.value;
+  sound41.volume = audioSlider.value;
 });
 
 // ------------------ UPDATE ------------------
@@ -302,9 +309,20 @@ function update() {
 
   if (!adminMode && (bird.y < 0 || bird.y + bird.height > canvas.height))
     triggerDeath();
+
+  // Activate 41 image
+  if (score >= 41) {
+    img41Active = true;
+    if (!sound41Played) {
+      sound41.volume = audioSlider.value;
+      sound41.play().catch(() => {});
+      sound41Played = true;
+    }
+  }
+  if (img41Active) img41X -= 20; // <-- move 20px per frame
 }
 
-// ------------------ COLLISION (SMALLER HITBOX) ------------------
+// ------------------ COLLISION ------------------
 function checkCollision(pipe) {
   const hitbox = {
     x: bird.x + bird.width * 0.05,
@@ -338,6 +356,10 @@ function restartGame() {
   endingTriggered = false;
   cutscenePlaying = false;
 
+  img41X = canvas.width;
+  img41Active = false;
+  sound41Played = false;
+
   music.currentTime = 0;
   music.volume = audioSlider.value;
   music.play().catch(() => {});
@@ -347,6 +369,8 @@ function restartGame() {
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(bgImg,0,0,canvas.width,canvas.height);
+
+  if (img41Active) ctx.drawImage(img41, img41X, 0, img41.width, canvas.height);
 
   if (!gameOver) {
     ctx.save();
