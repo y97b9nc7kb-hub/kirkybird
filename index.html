@@ -5,40 +5,77 @@
 <title>Kirky Bird</title>
 
 <style>
-body {
+html, body {
   margin: 0;
-  position: relative;
-  background-image: url("filler.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
   font-family: Arial, sans-serif;
 }
 
-body::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0.25);
-  z-index: 0;
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: url("filler.png") no-repeat center center;
+  background-size: cover;
 }
 
 canvas {
-  position: relative;
-  z-index: 1;
   border: 2px solid black;
   box-shadow: 0 12px 35px rgba(0,0,0,0.4);
   border-radius: 6px;
+  z-index: 1;
+}
+
+#fadeOverlay {
+  position: fixed;
+  inset: 0;
+  background: black;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9998;
+  transition: opacity 3s linear;
+}
+
+#fadeOverlay.active {
+  opacity: 1;
+}
+
+#endingVideo {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  display: none;
+  z-index: 9999;
+  background: black;
+}
+
+#skipButton {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  padding: 10px 15px;
+  font-size: 16px;
+  background: rgba(255,255,255,0.8);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: none;
 }
 </style>
 </head>
+
 <body>
 
 <canvas id="game" width="400" height="600"></canvas>
+<div id="fadeOverlay"></div>
+<video id="endingVideo" src="video.mp4"></video>
+<button id="skipButton">Skip Cutscene</button>
 
 <audio id="music" src="music.mp3" loop></audio>
 <audio id="pew" src="pew.mp3" preload="auto"></audio>
@@ -46,115 +83,146 @@ canvas {
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const fadeOverlay = document.getElementById("fadeOverlay");
+const endingVideo = document.getElementById("endingVideo");
+const skipButton = document.getElementById("skipButton");
 
-// Images
-const birdImg = new Image();
-birdImg.src = "bird.png";
+const birdImg = new Image(); birdImg.src = "bird.png";
+const bgImg = new Image();   bgImg.src = "background.png";
+const overImg = new Image(); overImg.src = "over.png";
 
-const bgImg = new Image();
-bgImg.src = "background.png";
-
-const overImg = new Image();
-overImg.src = "over.png";
-
-// Audio
 const music = document.getElementById("music");
 const pewSound = document.getElementById("pew");
 
-// Bird
-let bird = {
-  x: 80,
-  y: 250,
-  width: 60,
-  height: 45,
-  velocity: 0
-};
-
+// ------------------ GAME STATE ------------------
+let bird = { x: 80, y: 250, width: 60, height: 45, velocity: 0 };
 const gravity = 0.4;
 const flapStrength = -8;
 
-// Pipes
 let pipes = [];
 const pipeWidth = 60;
 const gap = 180;
 
-// Game state
 let frame = 0;
 let score = 0;
 let gameStarted = false;
 let gameOver = false;
+let endingTriggered = false;
+let cutscenePlaying = false;
 let adminMode = false;
-
-// Admin targeting
 let targetGapY = null;
-
-// Speed scaling
 let timeScale = 1;
 
-// Controls
+// ------------------ CHEAT CODE ------------------
+let cheatSequence = [];
+const cheatCode = ["6","7"];
+
+// ------------------ CONTROLS ------------------
 document.addEventListener("keydown", e => {
   if (e.code === "Space") {
-    e.preventDefault();
-    handleInput();
+    if (gameOver) restartGame();
+    else handleInput();
   }
 
   if (e.code === "KeyQ") {
     adminMode = !adminMode;
     timeScale = adminMode ? 2.5 : 1;
     targetGapY = null;
-    console.log("ADMIN MODE:", adminMode);
+  }
+
+  // Cheat code in admin mode
+  if (adminMode && "0123456789".includes(e.key)) {
+    cheatSequence.push(e.key);
+    if (cheatSequence.slice(-cheatCode.length).join("") === cheatCode.join("")) {
+      score = 63;
+      cheatSequence = [];
+    }
   }
 });
 
-document.addEventListener("click", handleInput);
+// Restart with click
+document.addEventListener("click", () => {
+  if (gameOver) restartGame();
+  else handleInput();
+});
 
 function handleInput() {
+  if (cutscenePlaying) return;
   if (!gameStarted) {
     gameStarted = true;
     music.volume = 0.5;
     music.play().catch(() => {});
   }
 
-  if (!gameOver && !adminMode) {
-    bird.velocity = flapStrength;
-  } else if (gameOver) {
-    resetGame();
-  }
+  if (!gameOver && !adminMode) bird.velocity = flapStrength;
 }
 
-function resetGame() {
-  bird.y = 250;
-  bird.velocity = 0;
-  pipes = [];
-  frame = 0;
-  score = 0;
-  gameOver = false;
-  targetGapY = null;
-
-  music.currentTime = 0;
-  music.play().catch(() => {});
-}
-
+// ------------------ PIPE GENERATION ------------------
 function createPipe() {
   const topHeight = Math.random() * 220 + 60;
-  pipes.push({
-    x: canvas.width,
-    top: topHeight,
-    bottom: canvas.height - topHeight - gap,
-    passed: false
-  });
+  pipes.push({ x: canvas.width, top: topHeight, bottom: canvas.height - topHeight - gap, passed: false });
 }
 
+// ------------------ CUTSCENE ------------------
+function triggerEnding() {
+  if (endingTriggered) return;
+
+  endingTriggered = true;
+  cutscenePlaying = true;
+  fadeOverlay.classList.add("active");
+  skipButton.style.display = "block"; // show skip button
+
+  const fadeInterval = setInterval(() => {
+    if (music.volume > 0.02) music.volume -= 0.02;
+    else {
+      music.pause();
+      clearInterval(fadeInterval);
+    }
+  }, 100);
+
+  setTimeout(() => {
+    endingVideo.style.display = "block";
+    endingVideo.play().catch(() => {});
+  }, 3000);
+}
+
+// Skip cutscene
+skipButton.addEventListener("click", () => {
+  if (!cutscenePlaying) return;
+
+  endingVideo.pause();
+  endingVideo.currentTime = 0;
+  endingVideo.style.display = "none";
+
+  skipButton.style.display = "none";
+  fadeOverlay.classList.remove("active");
+  cutscenePlaying = false;
+
+  music.volume = 0.5;
+  music.play().catch(() => {});
+});
+
+endingVideo.addEventListener("ended", () => {
+  endingVideo.style.display = "none";
+  skipButton.style.display = "none";
+  endingVideo.currentTime = 0;
+
+  fadeOverlay.classList.remove("active");
+  cutscenePlaying = false;
+
+  music.volume = 0.5;
+  music.play().catch(() => {});
+});
+
+// ------------------ UPDATE ------------------
 function update() {
-  if (!gameStarted || gameOver) return;
+  if (!gameStarted || cutscenePlaying || gameOver) return;
 
   frame += timeScale;
 
-  // Admin autopilot (linear targeting)
   if (adminMode && targetGapY !== null) {
     const centerBird = bird.y + bird.height / 2;
-    const diff = targetGapY - centerBird;
-    bird.y += diff * 0.15 * timeScale;
+    bird.y += (targetGapY - centerBird) * 0.15 * timeScale;
     bird.velocity = 0;
   } else {
     bird.velocity += gravity * timeScale;
@@ -169,85 +237,92 @@ function update() {
     if (!pipe.passed && pipe.x + pipeWidth < bird.x) {
       pipe.passed = true;
       score++;
-
-      if (adminMode) {
-        targetGapY = pipe.top + gap / 2;
-      }
+      if (score === 67) triggerEnding();
+      if (adminMode) targetGapY = pipe.top + gap / 2;
     }
 
-    if (!adminMode && checkCollision(pipe)) {
-      triggerDeath();
-      return;
-    }
+    if (!adminMode && checkCollision(pipe)) triggerDeath();
   }
 
-  if (!adminMode && (bird.y < 0 || bird.y + bird.height > canvas.height)) {
+  if (!adminMode && (bird.y < 0 || bird.y + bird.height > canvas.height))
     triggerDeath();
-  }
 }
 
 function checkCollision(pipe) {
-  return (
-    bird.x < pipe.x + pipeWidth &&
-    bird.x + bird.width > pipe.x &&
-    (bird.y < pipe.top ||
-     bird.y + bird.height > canvas.height - pipe.bottom)
-  );
+  return bird.x < pipe.x + pipeWidth &&
+         bird.x + bird.width > pipe.x &&
+         (bird.y < pipe.top ||
+          bird.y + bird.height > canvas.height - pipe.bottom);
 }
 
+// ------------------ GAME OVER ------------------
 function triggerDeath() {
   if (gameOver) return;
-
   gameOver = true;
   music.pause();
-  music.currentTime = 0;
-
-  pewSound.currentTime = 0;
   pewSound.play().catch(() => {});
 }
 
+// ------------------ RESTART ------------------
+function restartGame() {
+  bird = { x: 80, y: 250, width: 60, height: 45, velocity: 0 };
+  pipes = [];
+  frame = 0;
+  score = 0;
+  gameOver = false;
+  gameStarted = true;
+  endingTriggered = false;
+  cutscenePlaying = false;
+
+  music.currentTime = 0;
+  music.volume = 0.5;
+  music.play().catch(() => {});
+}
+
+// ------------------ DRAW ------------------
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
   ctx.drawImage(bgImg,0,0,canvas.width,canvas.height);
 
-  // Bird
-  ctx.save();
-  ctx.translate(bird.x + bird.width/2, bird.y + bird.height/2);
-  ctx.rotate(bird.velocity * 0.05);
-  ctx.drawImage(birdImg, -bird.width/2, -bird.height/2, bird.width, bird.height);
-  ctx.restore();
+  if (!gameOver) {
+    ctx.save();
+    ctx.translate(bird.x + bird.width/2, bird.y + bird.height/2);
+    ctx.rotate(bird.velocity * 0.05);
+    ctx.drawImage(birdImg,-bird.width/2,-bird.height/2,bird.width,bird.height);
+    ctx.restore();
 
-  // Pipes
-  ctx.fillStyle = "green";
-  for (let pipe of pipes) {
-    ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
-    ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipeWidth, pipe.bottom);
+    ctx.fillStyle = "green";
+    for (let p of pipes) {
+      ctx.fillRect(p.x,0,pipeWidth,p.top);
+      ctx.fillRect(p.x,canvas.height - p.bottom,pipeWidth,p.bottom);
+    }
+  } else {
+    // ---------------- GAME OVER SCREEN ----------------
+    const overHeight = canvas.height / 2;
+    ctx.drawImage(overImg, 0, (canvas.height - overHeight)/2, canvas.width, overHeight);
+
+    ctx.fillStyle = "white";
+    ctx.font = "24px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Score: " + score, canvas.width/2, 50);
+    ctx.fillText("Click or Press SPACE to Restart", canvas.width/2, 550);
+    ctx.textAlign = "start";
   }
 
-  // Score
   ctx.fillStyle = "black";
   ctx.font = "24px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 
   if (adminMode) {
     ctx.fillStyle = "red";
-    ctx.font = "16px Arial";
-    ctx.fillText("ADMIN MODE", 260, 30);
-  }
-
-  if (!gameStarted) {
-    ctx.font = "26px Arial";
-    ctx.fillText("Press SPACE or Click to Start", 30, 300);
-  }
-
-  if (gameOver) {
-    ctx.drawImage(overImg, 75, 250, 250, 100);
-    ctx.font = "18px Arial";
-    ctx.fillText("Press SPACE or Click to Restart", 60, 370);
+    ctx.font = "20px Arial";
+    ctx.textAlign = "right";
+    ctx.fillText("ADMIN MODE", canvas.width - 10, 30);
+    ctx.textAlign = "start";
   }
 }
 
+// ------------------ LOOP ------------------
 function loop() {
   update();
   draw();
