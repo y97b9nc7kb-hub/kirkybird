@@ -169,12 +169,20 @@ let timeScale = 1;
 let typedSequence = [];
 const adminWord = "KIRK";
 let cheatSequence = [];
-const cheatCodes = { "67": 66, "41": 40 };
+const cheatCodes = { "67": 66, "41": 41 };
 
 // ------------------ 41 IMAGE ------------------
 let img41X = canvas.width;
 let img41Active = false;
 let sound41Played = false;
+
+
+
+// ------------------ SPEED --------------------
+let baseSpeed = 1.8;
+let speedMultiplier = 0;
+const maxSpeedIncrease = 2.2;     // max extra speed
+const speedRampRate = 0.0006;     // how fast it ramps up
 
 // ------------------ CONTROLS ------------------
 document.addEventListener("keydown", e => {
@@ -289,6 +297,11 @@ function update() {
 
   frame += timeScale;
 
+  speedMultiplier = Math.min(
+  speedMultiplier + speedRampRate * timeScale,
+  maxSpeedIncrease
+);
+
   // Admin auto-move
   if (adminMode && targetGapY !== null) {
     const centerBird = bird.y + bird.height / 2;
@@ -304,8 +317,7 @@ function update() {
 
   for (let pipe of pipes) {
     // slowly increase difficulty with score
-    const speedIncrease = Math.min(score * 0.02, 1); // max 1 extra speed
-    pipe.x -= (1.8 + speedIncrease) * timeScale;
+    pipe.x -= (baseSpeed + speedMultiplier) * timeScale;
 
     if (!pipe.passed && pipe.x + pipeWidth < bird.x) {
       pipe.passed = true;
@@ -369,6 +381,8 @@ function restartGame() {
   img41X = canvas.width;
   img41Active = false;
   sound41Played = false;
+
+  speedMultiplier = 0;
 
   music.currentTime = 0;
   music.volume = audioSlider.value;
