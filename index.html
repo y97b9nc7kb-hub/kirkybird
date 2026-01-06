@@ -4,6 +4,40 @@
 <meta charset="UTF-8">
 <title>Kirky Bird</title>
 
+<script>
+const USERNAME_KEY = "kirkyBirdUsername";
+let username = localStorage.getItem(USERNAME_KEY) || "Player";
+
+// Redirect if no username (failsafe)
+if (!localStorage.getItem(USERNAME_KEY)) {
+  window.location.href = "main.html";
+
+  <button id="changeUsernameBtn" style="
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10002;
+  padding: 10px 15px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: rgba(0,150,255,0.8);
+  color: white;
+">Change Username</button>
+
+const changeUsernameBtn = document.getElementById("changeUsernameBtn");
+
+changeUsernameBtn.addEventListener("click", () => {
+  const newName = prompt("Enter new username:", username);
+  if (newName && newName.trim()) {
+    username = newName.trim();
+    localStorage.setItem("kirkyBirdUsername", username);
+  }
+});
+}
+</script>
+
 <style>
 html, body {
   margin: 0;
@@ -176,13 +210,15 @@ let img41X = canvas.width;
 let img41Active = false;
 let sound41Played = false;
 
-
+// ------------------ SCOREBOARD ------------------
+let highScore = Number(localStorage.getItem("kirkyBirdHighScore")) || 0; 
 
 // ------------------ SPEED --------------------
 let baseSpeed = 1.8;
 let speedMultiplier = 0;
 const maxSpeedIncrease = 2.2;     // max extra speed
 const speedRampRate = 0.0006;     // how fast it ramps up
+
 
 // ------------------ CONTROLS ------------------
 document.addEventListener("keydown", e => {
@@ -363,6 +399,13 @@ function checkCollision(pipe) {
 function triggerDeath() {
   if (gameOver) return;
   gameOver = true;
+
+  // SAVE HIGH SCORE
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem("kirkyBirdHighScore", highScore);
+  }
+
   music.pause();
   pewSound.play().catch(() => {});
 }
@@ -416,13 +459,16 @@ function draw() {
     ctx.font = "24px Arial";
     ctx.textAlign = "center";
     ctx.fillText("Score: " + score, canvas.width/2, 50);
+    ctx.fillText("High Score: " + highScore, canvas.width/2, 85);
     ctx.fillText("Click or Press SPACE to Restart", canvas.width/2, 550);
     ctx.textAlign = "start";
   }
 
-  ctx.fillStyle = "white";
-  ctx.font = "24px Arial";
-  ctx.fillText("Score: " + score, 10, 30);
+   ctx.fillStyle = "white";
+   ctx.font = "24px Arial";
+   ctx.fillText("Score: " + score, 10, 30);
+   ctx.font = "18px Arial";
+   ctx.fillText("Best: " + highScore, 10, 55);
 
   if (adminMode) {
     ctx.fillStyle = "red";
