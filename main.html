@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kirky Bird – Main Menu</title>
+
+<style>
+body {
+  margin: 0;
+  height: 100vh;
+  background: url("filler.png") center / cover no-repeat;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: Arial, sans-serif;
+}
+
+#menu {
+  background: rgba(0,0,0,0.7);
+  padding: 30px 40px;
+  border-radius: 12px;
+  text-align: center;
+  color: white;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+}
+
+input {
+  width: 220px;
+  padding: 10px;
+  font-size: 18px;
+  border-radius: 6px;
+  border: none;
+  margin-top: 10px;
+}
+
+button {
+  margin-top: 20px;
+  padding: 12px 22px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #00c853;
+  color: white;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+  <h1>Kirky Bird</h1>
+  <p>Enter your username</p>
+
+  <input id="usernameInput" maxlength="16" placeholder="Username">
+  <br>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<script>
+const input = document.getElementById("usernameInput");
+const btn = document.getElementById("startBtn");
+const KEY = "kirkyBirdUsername";
+
+// Load saved username
+const saved = localStorage.getItem(KEY);
+if (saved) input.value = saved;
+
+btn.onclick = () => {
+  const name = input.value.trim();
+  if (!name) {
+    alert("Please enter a username");
+    return;
+  }
+
+  localStorage.setItem(KEY, name);
+  window.location.href = "index.html";
+};
+</script>
+
+</body>
+</html>
