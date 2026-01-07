@@ -5,11 +5,14 @@
 <title>Kirky Bird</title>
 
 <script>
-const USERNAME_KEY = "kirkyBirdUsername";
+const allowGameLoad = sessionStorage.getItem("allowGameLoad");
 
-// If no username is saved, redirect to username screen
-if (!localStorage.getItem(USERNAME_KEY)) {
+// If we did NOT just come from main.html, redirect back
+if (!allowGameLoad) {
   window.location.replace("main.html");
+} else {
+  // Consume the flag so refresh goes back to main.html
+  sessionStorage.removeItem("allowGameLoad");
 }
 </script>
 
