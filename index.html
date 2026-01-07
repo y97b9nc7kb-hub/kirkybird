@@ -5,17 +5,13 @@
 <title>Kirky Bird</title>
 
 <script>
-const allowGameLoad = sessionStorage.getItem("allowGameLoad");
-
-// If we did NOT just come from main.html, redirect back
-if (!allowGameLoad) {
+if (sessionStorage.getItem("fromMain") !== "yes") {
   window.location.replace("main.html");
 } else {
-  // Consume the flag so refresh goes back to main.html
-  sessionStorage.removeItem("allowGameLoad");
+  // One-time access only
+  sessionStorage.removeItem("fromMain");
 }
 </script>
-
 <style>
 html, body {
   margin: 0;
