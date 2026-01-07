@@ -63,8 +63,8 @@ button.addEventListener("click", () => {
 
   localStorage.setItem(USERNAME_KEY, name);
 
-  // 👇 Allow index.html to load ONCE
-  sessionStorage.setItem("allowGameLoad", "true");
+  // 🔓 Grant ONE-TIME access to the game
+  sessionStorage.setItem("fromMain", "yes");
 
   window.location.replace("index.html");
 });
