@@ -2,80 +2,67 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Kirky Bird – Main Menu</title>
-
+<title>Kirky Bird - Enter Username</title>
 <style>
 body {
   margin: 0;
+  padding: 0;
   height: 100vh;
-  background: url("filler.png") center / cover no-repeat;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   font-family: Arial, sans-serif;
-}
-
-#menu {
-  background: rgba(0,0,0,0.7);
-  padding: 30px 40px;
-  border-radius: 12px;
-  text-align: center;
-  color: white;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  background: url("filler.png") no-repeat center center;
+  background-size: cover;
 }
 
 input {
-  width: 220px;
   padding: 10px;
   font-size: 18px;
+  margin-bottom: 10px;
   border-radius: 6px;
-  border: none;
-  margin-top: 10px;
+  border: 2px solid #000;
 }
 
 button {
-  margin-top: 20px;
-  padding: 12px 22px;
+  padding: 10px 20px;
   font-size: 18px;
-  border-radius: 8px;
+  border-radius: 6px;
   border: none;
-  cursor: pointer;
-  background: #00c853;
+  background-color: #28a745;
   color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #218838;
 }
 </style>
 </head>
-
 <body>
 
-<div id="menu">
-  <h1>Kirky Bird</h1>
-  <p>Enter your username</p>
-
-  <input id="usernameInput" maxlength="16" placeholder="Username">
-  <br>
-  <button id="startBtn">Start Game</button>
-</div>
+<h1>Enter Your Username</h1>
+<input id="usernameInput" type="text" placeholder="Enter username">
+<button id="saveBtn">Start Game</button>
 
 <script>
+const USERNAME_KEY = "kirkyBirdUsername";
 const input = document.getElementById("usernameInput");
-const btn = document.getElementById("startBtn");
-const KEY = "kirkyBirdUsername";
+const button = document.getElementById("saveBtn");
 
-// Load saved username
-const saved = localStorage.getItem(KEY);
-if (saved) input.value = saved;
+// Pre-fill saved username if it exists
+input.value = localStorage.getItem(USERNAME_KEY) || "";
 
-btn.onclick = () => {
+button.addEventListener("click", () => {
   const name = input.value.trim();
-  if (!name) {
+  if (name) {
+    localStorage.setItem(USERNAME_KEY, name);
+    window.location.href = "index.html";
+  } else {
     alert("Please enter a username");
-    return;
   }
-
-  localStorage.setItem(KEY, name);
-  window.location.href = "index.html";
-};
+});
 </script>
 
 </body>
