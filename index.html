@@ -6,35 +6,10 @@
 
 <script>
 const USERNAME_KEY = "kirkyBirdUsername";
-let username = localStorage.getItem(USERNAME_KEY) || "Player";
 
-// Redirect if no username (failsafe)
+// If no username is saved, redirect to username screen
 if (!localStorage.getItem(USERNAME_KEY)) {
-  window.location.href = "main.html";
-
-  <button id="changeUsernameBtn" style="
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 10002;
-  padding: 10px 15px;
-  font-size: 14px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  background: rgba(0,150,255,0.8);
-  color: white;
-">Change Username</button>
-
-const changeUsernameBtn = document.getElementById("changeUsernameBtn");
-
-changeUsernameBtn.addEventListener("click", () => {
-  const newName = prompt("Enter new username:", username);
-  if (newName && newName.trim()) {
-    username = newName.trim();
-    localStorage.setItem("kirkyBirdUsername", username);
-  }
-});
+  window.location.replace("main.html");
 }
 </script>
 
