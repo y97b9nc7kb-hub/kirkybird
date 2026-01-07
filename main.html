@@ -48,20 +48,25 @@ button:hover {
 
 <script>
 const USERNAME_KEY = "kirkyBirdUsername";
+
 const input = document.getElementById("usernameInput");
 const button = document.getElementById("saveBtn");
 
-// Pre-fill saved username if it exists
 input.value = localStorage.getItem(USERNAME_KEY) || "";
 
 button.addEventListener("click", () => {
   const name = input.value.trim();
-  if (name) {
-    localStorage.setItem(USERNAME_KEY, name);
-    window.location.href = "index.html";
-  } else {
+  if (!name) {
     alert("Please enter a username");
+    return;
   }
+
+  localStorage.setItem(USERNAME_KEY, name);
+
+  // 👇 Allow index.html to load ONCE
+  sessionStorage.setItem("allowGameLoad", "true");
+
+  window.location.replace("index.html");
 });
 </script>
 
