@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kirky Bird – Global Scoreboard</title>
+
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background: url("filler.png") no-repeat center center;
+  background-size: cover;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+#board {
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.score {
+  display: grid;
+  grid-template-columns: 50px 1fr 80px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.rank {
+  color: gold;
+}
+
+#backButton {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10000;
+  padding: 10px 15px;
+  font-size: 16px;
+  background: rgba(100, 200, 255, 0.9);
+  border: 2px solid white;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div id="board">
+  <h1>🏆 Global Scoreboard</h1>
+  <div id="scores">Loading…</div>
+</div>
+
+<button id="backButton">← Back to Game</button>
+
+<script type="module">
+/* ---------- FIREBASE ---------- */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { 
+  getFirestore,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB-TLM-aoW4NrIGALqEHwr4R8aaUKZMjYQ",
+  authDomain: "kirkybirdscores.firebaseapp.com",
+  projectId: "kirkybirdscores"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const scoresDiv = document.getElementById("scores");
+const USERNAME_KEY = "kirkyBirdUsername";
+
+/* ---------- SYNC LOCAL HIGH SCORE TO FIRESTORE ---------- */
+(async () => {
+  const username = localStorage.getItem(USERNAME_KEY);
+  const localHighScore = Number(localStorage.getItem("kirkyBirdHighScore")) || 0;
+
+  if (username && localHighScore > 0) {
+    try {
+      await setDoc(
+        doc(db, "scores", username),
+        {
+          username,
+          highScore: localHighScore,
+          updated: Date.now()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error("Sync failed:", err);
+    }
+  }
+})();
+
+/* ---------- LOAD SCORES ---------- */
+async function loadScores() {
+  try {
+    const q = query(
+      collection(db, "scores"),
+      orderBy("highScore", "desc"),
+      limit(50)
+    );
+
+    const snapshot = await getDocs(q);
+    scoresDiv.innerHTML = "";
+
+    if (snapshot.empty) {
+      scoresDiv.textContent = "No scores yet.";
+      return;
+    }
+
+    let rank = 1;
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+
+      // SAFETY CHECK
+      if (!data.username || data.highScore === undefined) return;
+
+      const row = document.createElement("div");
+      row.className = "score";
+      row.innerHTML = `
+        <span class="rank">#${rank}</span>
+        <span>${data.username}</span>
+        <span>${data.highScore}</span>
+      `;
+
+      scoresDiv.appendChild(row);
+      rank++;
+    });
+
+  } catch (err) {
+    console.error(err);
+    scoresDiv.textContent = "⚠️ Failed to load scores";
+  }
+}
+
+loadScores();
+
+/* ---------- BACK BUTTON ---------- */
+document.getElementById("backButton").addEventListener("click", () => {
+  sessionStorage.setItem("fromMain", "yes");
+  window.location.href = "index.html";
+});
+</script>
+
+</body>
+</html>
