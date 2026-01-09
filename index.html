@@ -11,6 +11,10 @@ if (sessionStorage.getItem("fromMain") !== "yes") {
   // One-time access only
   sessionStorage.removeItem("fromMain");
 }
+
+// ---------- USER INFO ----------
+const USERNAME_KEY = "kirkyBirdUsername";
+const username = localStorage.getItem(USERNAME_KEY) || "Player";
 </script>
 <style>
 html, body {
@@ -83,6 +87,22 @@ canvas {
   display: none;
 }
 
+#scoreboardButton {
+  position: fixed;
+  top: 23%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10000;
+  padding: 12px 24px;
+  font-size: 18px;
+  background: rgba(100, 200, 255, 0.9);
+  border: 2px solid white;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+  font-weight: bold;
+}
+
 #audioSlider {
   position: fixed;
   bottom: 20px;
@@ -130,6 +150,7 @@ canvas {
 <div id="fadeOverlay"></div>
 <video id="endingVideo" src="video.mp4" playsinline></video>
 <button id="skipButton">Skip Cutscene</button>
+<button id="scoreboardButton" style="display: none;">View Scoreboard</button>
 
 <!-- AUDIO CONTROL -->
 <input type="range" id="audioSlider" min="0" max="1" step="0.01" value="0.5">
@@ -380,9 +401,16 @@ function triggerDeath() {
     localStorage.setItem("kirkyBirdHighScore", highScore);
   }
 
+  document.getElementById("scoreboardButton").style.display = "block";
+
   music.pause();
   pewSound.play().catch(() => {});
 }
+
+// ------------------ SCOREBOARD BUTTON ------------------
+document.getElementById("scoreboardButton").addEventListener("click", () => {
+  window.location.href = "scoreboard.html";
+});
 
 // ------------------ RESTART ------------------
 function restartGame() {
@@ -400,6 +428,8 @@ function restartGame() {
   sound41Played = false;
 
   speedMultiplier = 0;
+
+  document.getElementById("scoreboardButton").style.display = "none";
 
   music.currentTime = 0;
   music.volume = audioSlider.value;
@@ -443,6 +473,10 @@ function draw() {
    ctx.fillText("Score: " + score, 10, 30);
    ctx.font = "18px Arial";
    ctx.fillText("Best: " + highScore, 10, 55);
+
+   ctx.fillStyle = "white";
+   ctx.font = "16px Arial";
+   ctx.fillText("User: " + username, 10, 80); 
 
   if (adminMode) {
     ctx.fillStyle = "red";
