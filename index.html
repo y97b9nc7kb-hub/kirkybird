@@ -6,7 +6,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB-TLM-aoW4NrIGALqEHwr4R8aaUKZMjYQ",
@@ -76,7 +76,50 @@ window.saveGameScore = async function (score, username) {
   }
 };
 
-// Mark Firebase as ready
+// Sync local storage from database for this device (if present).
+window.syncLocalFromDatabase = async function () {
+  try {
+    const deviceKey = "kirkyBirdDeviceId";
+    let deviceId = localStorage.getItem(deviceKey);
+
+    if (!deviceId) return; // nothing to sync
+
+    const scoreRef = ref(database, "scores/" + deviceId);
+    const snap = await get(scoreRef);
+    if (!snap.exists()) {
+      // If admin removed the DB entry, clear local score/username so the game
+      // treats this device as not played.
+      localStorage.removeItem("kirkyBirdHighScore");
+      localStorage.removeItem("kirkyBirdUsername");
+      console.log("No DB entry for device; cleared local score and username");
+    } else {
+      const data = snap.val() || {};
+      if (data.username) localStorage.setItem("kirkyBirdUsername", data.username);
+      if (data.highScore !== undefined) localStorage.setItem("kirkyBirdHighScore", String(data.highScore));
+      console.log("Synced local storage from DB for device", deviceId, data);
+    }
+
+    // Live listen for changes to this device's record so admin edits apply immediately
+    onValue(scoreRef, s => {
+      if (!s.exists()) {
+        localStorage.removeItem("kirkyBirdHighScore");
+        localStorage.removeItem("kirkyBirdUsername");
+        console.log("DB entry removed for device; cleared local storage");
+        return;
+      }
+      const d = s.val();
+      if (d.username) localStorage.setItem("kirkyBirdUsername", d.username);
+      if (d.highScore !== undefined) localStorage.setItem("kirkyBirdHighScore", String(d.highScore));
+      console.log("Live DB update applied to local storage:", d);
+    });
+  } catch (err) {
+    console.error("Failed to sync local data from DB:", err);
+  }
+};
+
+// perform initial sync before non-module script runs (top-level await allowed in modules)
+await window.syncLocalFromDatabase();
+
 window.firebaseReady = true;
 
 </script>
@@ -516,6 +559,15 @@ function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(bgImg,0,0,canvas.width,canvas.height);
 
+  // Re-sync username/highScore from localStorage so admin edits show up immediately
+  try {
+    const lsUser = localStorage.getItem("kirkyBirdUsername");
+    if (lsUser) username = lsUser;
+    const lsHigh = Number(localStorage.getItem("kirkyBirdHighScore"));
+    if (!isNaN(lsHigh) && lsHigh >= 0) highScore = lsHigh;
+  } catch (e) {
+    // ignore
+  }
   if (img41Active) ctx.drawImage(img41, img41X, 0, img41.width, canvas.height);
 
   if (!gameOver) {
