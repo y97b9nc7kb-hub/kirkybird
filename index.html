@@ -4,17 +4,81 @@
 <meta charset="UTF-8">
 <title>Kirky Bird</title>
 
-<script>
-if (sessionStorage.getItem("fromMain") !== "yes") {
-  window.location.replace("main.html");
-} else {
-  // One-time access only
-  sessionStorage.removeItem("fromMain");
-}
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
-// ---------- USER INFO ----------
-const USERNAME_KEY = "kirkyBirdUsername";
-const username = localStorage.getItem(USERNAME_KEY) || "Player";
+const firebaseConfig = {
+  apiKey: "AIzaSyB-TLM-aoW4NrIGALqEHwr4R8aaUKZMjYQ",
+  authDomain: "kirkybirdscores.firebaseapp.com",
+  projectId: "kirkybirdscores",
+  storageBucket: "kirkybirdscores.firebasestorage.app",
+  messagingSenderId: "355374076004",
+  appId: "1:355374076004:web:4657b6b6a768e97d4c4f71",
+  measurementId: "G-K49ZEZSWT2",
+  databaseURL: "https://kirkybirdscores-default-rtdb.firebaseio.com"
+};
+
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+
+/* ---------- GLOBAL SCORE SAVE ---------- */
+window.saveGlobalScore = async function (score, username) {
+  try {
+    const deviceKey = "kirkyBirdDeviceId";
+    let deviceId = localStorage.getItem(deviceKey);
+
+    if (!deviceId) {
+      deviceId = Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(deviceKey, deviceId);
+    }
+
+    await set(ref(database, "scores/" + deviceId), {
+      username,
+      highScore: Number(score),
+      updated: Date.now(),
+      deviceId
+    });
+    console.log("Global score saved:", { username, highScore: score });
+  } catch (err) {
+    console.error("Failed to save global score:", err);
+  }
+};
+
+/* ---------- SAVE INDIVIDUAL GAME SCORE ---------- */
+window.saveGameScore = async function (score, username) {
+  try {
+    const deviceKey = "kirkyBirdDeviceId";
+    let deviceId = localStorage.getItem(deviceKey);
+
+    if (!deviceId) {
+      deviceId = Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(deviceKey, deviceId);
+    }
+
+    // Get the current high score and update if this score is higher
+    const scoreRef = ref(database, "scores/" + deviceId);
+    const snapshot = await get(scoreRef);
+    const currentData = snapshot.val() || {};
+    const currentHighScore = currentData.highScore || 0;
+
+    await set(scoreRef, {
+      username,
+      highScore: Math.max(Number(score), currentHighScore),
+      updated: Date.now(),
+      deviceId,
+      lastScore: Number(score),
+      lastScoreTime: Date.now()
+    });
+    console.log("Game score saved:", { username, score });
+  } catch (err) {
+    console.error("Failed to save game score:", err);
+  }
+};
+
+// Mark Firebase as ready
+window.firebaseReady = true;
+
 </script>
 <style>
 html, body {
@@ -207,6 +271,7 @@ let sound41Played = false;
 
 // ------------------ SCOREBOARD ------------------
 let highScore = Number(localStorage.getItem("kirkyBirdHighScore")) || 0; 
+let username = localStorage.getItem("kirkyBirdUsername") || "Player"; 
 
 // ------------------ SPEED --------------------
 let baseSpeed = 1.8;
@@ -395,10 +460,20 @@ function triggerDeath() {
   if (gameOver) return;
   gameOver = true;
 
-  // SAVE HIGH SCORE
+  // SAVE LOCAL HIGH SCORE
   if (score > highScore) {
     highScore = score;
     localStorage.setItem("kirkyBirdHighScore", highScore);
+    
+    // SAVE GLOBAL HIGH SCORE
+    if (window.saveGlobalScore) {
+      saveGlobalScore(highScore, username).catch(e => console.error("Save failed:", e));
+    }
+  } else {
+    // SAVE CURRENT GAME SCORE GLOBALLY (even if not a personal high score)
+    if (window.saveGameScore) {
+      saveGameScore(score, username).catch(e => console.error("Save failed:", e));
+    }
   }
 
   document.getElementById("scoreboardButton").style.display = "block";
