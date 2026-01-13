@@ -301,6 +301,17 @@ let adminMode = false;
 let targetGapY = null;
 let timeScale = 1;
 
+// Provide a global setter so other scripts (voice/admin) can toggle admin mode
+window.setAdminMode = function(on) {
+  try {
+    adminMode = !!on;
+    timeScale = adminMode ? 2.5 : 1;
+    targetGapY = null;
+    console.log('Admin mode set to', adminMode);
+  } catch (e) {
+    console.error('Failed to set admin mode:', e);
+  }
+};
 // ------------------ CHEAT CODES ------------------
 let typedSequence = [];
 const adminWord = "KIRK";
@@ -622,6 +633,36 @@ function loop() {
 }
 
 loop();
+
+// ------------------ VOICE ACTIVATION (Admin Mode) ------------------
+try {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    const recog = new SpeechRecognition();
+    recog.continuous = true;
+    recog.interimResults = false;
+    recog.lang = 'en-US';
+    recog.onresult = (evt) => {
+      try {
+        let phrases = [];
+        for (let i = evt.resultIndex; i < evt.results.length; i++) {
+          phrases.push(evt.results[i][0].transcript.trim());
+        }
+        const text = phrases.join(' ').toLowerCase();
+        if (text.includes('enter admin mode') || text.includes('turn on admin mode')) {
+          if (window.setAdminMode) window.setAdminMode(true);
+        }
+        if (text.includes('turn off admin mode') || text.includes('exit admin mode') || text.includes('turn off the admin mode')) {
+          if (window.setAdminMode) window.setAdminMode(false);
+        }
+      } catch (e) { console.error('Voice onresult error', e); }
+    };
+    recog.onerror = (e) => { console.warn('SpeechRecognition error', e); };
+    recog.onend = () => { try { setTimeout(()=>recog.start(), 250); } catch(e){} };
+    recog.start();
+    console.log('Voice recognition started for admin mode commands');
+  } else console.warn('SpeechRecognition not supported in this browser');
+} catch (e) { console.error('Voice recognition init failed', e); }
 </script>
 </body>
 </html>
