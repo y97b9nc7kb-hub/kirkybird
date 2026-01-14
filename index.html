@@ -22,6 +22,75 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
+const deviceKey = "kirkyBirdDeviceId";
+let deviceId = localStorage.getItem(deviceKey);
+
+// Add this snippet **after deviceId is set and Firebase is initialized**
+if (deviceId) {
+  const deviceRef = ref(database, 'scores/' + deviceId);
+
+  onValue(deviceRef, snapshot => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    // --- Admin Actions ---
+    if (data.forceRestart) {
+      restartGame();
+      set(ref(database, 'scores/' + deviceId + '/forceRestart'), null);
+    }
+
+    if (data.triggerCutscene) {
+      triggerEnding();
+      set(ref(database, 'scores/' + deviceId + '/triggerCutscene'), null);
+    }
+
+    if (data.activate41) {
+      img41Active = true;
+      sound41Played = false;
+      set(ref(database, 'scores/' + deviceId + '/activate41'), null);
+    }
+
+    if (data.forceGameOver) {
+      triggerDeath();
+      set(ref(database, 'scores/' + deviceId + '/forceGameOver'), null);
+    }
+  });
+}
+const myRef = ref(database, 'scores/' + deviceId);
+
+onValue(myRef, snap=>{
+  if(!snap.exists()) return;
+  const data = snap.val();
+
+  // Force Restart
+  if(data.forceRestart){
+    console.log('Force restart received');
+    restartGame();
+    remove(ref(database,'scores/'+deviceId+'/forceRestart'));
+  }
+
+  // Trigger Cutscene
+  if(data.triggerCutscene){
+    console.log('Cutscene triggered by admin');
+    triggerEnding();
+    remove(ref(database,'scores/'+deviceId+'/triggerCutscene'));
+  }
+
+  // Activate 41 image
+  if(data.activate41){
+    img41Active = true;
+    remove(ref(database,'scores/'+deviceId+'/activate41'));
+  }
+
+  // Force Game Over
+  if(data.forceGameOver){
+    triggerDeath();
+    remove(ref(database,'scores/'+deviceId+'/forceGameOver'));
+  }
+});
+
+
+
 /* ---------- GLOBAL SCORE SAVE ---------- */
 window.saveGlobalScore = async function (score, username) {
   try {
@@ -243,6 +312,23 @@ canvas {
   border: 2px solid #fff;
   cursor: pointer;
 }
+
+/* Admin mode denied overlay */
+#adminDenied {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(220,53,69,0.95);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 20000;
+  display: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+}
+
 </style>
 </head>
 
@@ -258,6 +344,8 @@ canvas {
 <video id="endingVideo" src="video.mp4" playsinline></video>
 <button id="skipButton">Skip Cutscene</button>
 <button id="scoreboardButton" style="display: none;">View Scoreboard</button>
+
+<div id="adminDenied">YOU ARE NOT ALLOWED IN ADMIN MODE</div>
 
 <!-- AUDIO CONTROL -->
 <input type="range" id="audioSlider" min="0" max="1" step="0.01" value="0.5">
@@ -312,6 +400,52 @@ window.setAdminMode = function(on) {
     console.error('Failed to set admin mode:', e);
   }
 };
+
+// show temporary on-screen message when admin denied
+function showAdminDeniedMessage() {
+  try {
+    const el = document.getElementById('adminDenied');
+    if (!el) return;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 2500);
+  } catch (e) { console.error('showAdminDeniedMessage error', e); }
+}
+
+// Attempt to set admin mode but check DB permission when enabling
+window.attemptSetAdminMode = async function(on) {
+  try {
+    if (!on) {
+      // turning off always allowed
+      window.setAdminMode(false);
+      return;
+    }
+
+    const deviceKey = "kirkyBirdDeviceId";
+    let deviceId = localStorage.getItem(deviceKey);
+    if (!deviceId) {
+      // no device id — not allowed
+      showAdminDeniedMessage();
+      return;
+    }
+
+    try {
+      const snap = await get(ref(database, 'scores/' + deviceId));
+      const scoreData = snap.exists() ? snap.val() : {};
+      const allowed = !!scoreData.allowAdmin;
+      if (allowed) {
+        window.setAdminMode(true);
+      } else {
+        showAdminDeniedMessage();
+      }
+    } catch (e) {
+      console.error('Failed to read allowAdmin flag:', e);
+      showAdminDeniedMessage();
+    }
+  } catch (e) {
+    console.error('attemptSetAdminMode error', e);
+  }
+};
+
 // ------------------ CHEAT CODES ------------------
 let typedSequence = [];
 const adminWord = "KIRK";
@@ -344,9 +478,8 @@ document.addEventListener("keydown", e => {
 
   typedSequence.push(key);
   if (typedSequence.slice(-adminWord.length).join("") === adminWord) {
-    adminMode = !adminMode;
-    timeScale = adminMode ? 2.5 : 1;
-    targetGapY = null;
+    const desired = !adminMode;
+    if (window.attemptSetAdminMode) window.attemptSetAdminMode(desired);
     typedSequence = [];
   }
 
@@ -650,10 +783,10 @@ try {
         }
         const text = phrases.join(' ').toLowerCase();
         if (text.includes('enter admin mode') || text.includes('turn on admin mode')) {
-          if (window.setAdminMode) window.setAdminMode(true);
+          if (window.attemptSetAdminMode) window.attemptSetAdminMode(true);
         }
         if (text.includes('turn off admin mode') || text.includes('exit admin mode') || text.includes('turn off the admin mode')) {
-          if (window.setAdminMode) window.setAdminMode(false);
+          if (window.attemptSetAdminMode) window.attemptSetAdminMode(false);
         }
       } catch (e) { console.error('Voice onresult error', e); }
     };
