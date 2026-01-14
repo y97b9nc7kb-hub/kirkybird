@@ -6,7 +6,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB-TLM-aoW4NrIGALqEHwr4R8aaUKZMjYQ",
@@ -22,86 +22,46 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
+/* ---------- DEVICE ID LOGIC ---------- */
 const deviceKey = "kirkyBirdDeviceId";
-let deviceId = localStorage.getItem(deviceKey);
-
-// Add this snippet **after deviceId is set and Firebase is initialized**
-if (deviceId) {
-  const deviceRef = ref(database, 'scores/' + deviceId);
-
-  onValue(deviceRef, snapshot => {
-    const data = snapshot.val();
-    if (!data) return;
-
-    // --- Admin Actions ---
-    if (data.forceRestart) {
-      restartGame();
-      set(ref(database, 'scores/' + deviceId + '/forceRestart'), null);
-    }
-
-    if (data.triggerCutscene) {
-      triggerEnding();
-      set(ref(database, 'scores/' + deviceId + '/triggerCutscene'), null);
-    }
-
-    if (data.activate41) {
-      img41Active = true;
-      sound41Played = false;
-      set(ref(database, 'scores/' + deviceId + '/activate41'), null);
-    }
-
-    if (data.forceGameOver) {
-      triggerDeath();
-      set(ref(database, 'scores/' + deviceId + '/forceGameOver'), null);
-    }
-  });
+function getOrCreateDeviceId() {
+  let deviceId = localStorage.getItem(deviceKey);
+  if (!deviceId) {
+    deviceId = crypto.randomUUID(); // modern, universally unique ID
+    localStorage.setItem(deviceKey, deviceId);
+  }
+  return deviceId;
 }
-const myRef = ref(database, 'scores/' + deviceId);
+const deviceId = getOrCreateDeviceId();
 
-onValue(myRef, snap=>{
-  if(!snap.exists()) return;
-  const data = snap.val();
+/* ---------- LIVE ADMIN LISTENER ---------- */
+const deviceRef = ref(database, 'scores/' + deviceId);
+onValue(deviceRef, snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
 
-  // Force Restart
-  if(data.forceRestart){
-    console.log('Force restart received');
+  if (data.forceRestart) {
     restartGame();
-    remove(ref(database,'scores/'+deviceId+'/forceRestart'));
+    remove(ref(database, 'scores/' + deviceId + '/forceRestart'));
   }
-
-  // Trigger Cutscene
-  if(data.triggerCutscene){
-    console.log('Cutscene triggered by admin');
+  if (data.triggerCutscene) {
     triggerEnding();
-    remove(ref(database,'scores/'+deviceId+'/triggerCutscene'));
+    remove(ref(database, 'scores/' + deviceId + '/triggerCutscene'));
   }
-
-  // Activate 41 image
-  if(data.activate41){
+  if (data.activate41) {
     img41Active = true;
-    remove(ref(database,'scores/'+deviceId+'/activate41'));
+    sound41Played = false;
+    remove(ref(database, 'scores/' + deviceId + '/activate41'));
   }
-
-  // Force Game Over
-  if(data.forceGameOver){
+  if (data.forceGameOver) {
     triggerDeath();
-    remove(ref(database,'scores/'+deviceId+'/forceGameOver'));
+    remove(ref(database, 'scores/' + deviceId + '/forceGameOver'));
   }
 });
 
-
-
 /* ---------- GLOBAL SCORE SAVE ---------- */
-window.saveGlobalScore = async function (score, username) {
+window.saveGlobalScore = async function(score, username) {
   try {
-    const deviceKey = "kirkyBirdDeviceId";
-    let deviceId = localStorage.getItem(deviceKey);
-
-    if (!deviceId) {
-      deviceId = Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(deviceKey, deviceId);
-    }
-
     await set(ref(database, "scores/" + deviceId), {
       username,
       highScore: Number(score),
@@ -114,18 +74,9 @@ window.saveGlobalScore = async function (score, username) {
   }
 };
 
-/* ---------- SAVE INDIVIDUAL GAME SCORE ---------- */
-window.saveGameScore = async function (score, username) {
+/* ---------- GAME SCORE SAVE ---------- */
+window.saveGameScore = async function(score, username) {
   try {
-    const deviceKey = "kirkyBirdDeviceId";
-    let deviceId = localStorage.getItem(deviceKey);
-
-    if (!deviceId) {
-      deviceId = Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(deviceKey, deviceId);
-    }
-
-    // Get the current high score and update if this score is higher
     const scoreRef = ref(database, "scores/" + deviceId);
     const snapshot = await get(scoreRef);
     const currentData = snapshot.val() || {};
@@ -145,38 +96,31 @@ window.saveGameScore = async function (score, username) {
   }
 };
 
-// Sync local storage from database for this device (if present).
-window.syncLocalFromDatabase = async function () {
+/* ---------- SYNC LOCAL FROM DATABASE ---------- */
+window.syncLocalFromDatabase = async function() {
   try {
-    const deviceKey = "kirkyBirdDeviceId";
-    let deviceId = localStorage.getItem(deviceKey);
-
-    if (!deviceId) return; // nothing to sync
-
-    const scoreRef = ref(database, "scores/" + deviceId);
-    const snap = await get(scoreRef);
+    const snap = await get(deviceRef);
     if (!snap.exists()) {
-      // If admin removed the DB entry, clear local score/username so the game
-      // treats this device as not played.
       localStorage.removeItem("kirkyBirdHighScore");
       localStorage.removeItem("kirkyBirdUsername");
-      console.log("No DB entry for device; cleared local score and username");
-    } else {
-      const data = snap.val() || {};
-      if (data.username) localStorage.setItem("kirkyBirdUsername", data.username);
-      if (data.highScore !== undefined) localStorage.setItem("kirkyBirdHighScore", String(data.highScore));
-      console.log("Synced local storage from DB for device", deviceId, data);
+      console.log("No DB entry for device; cleared local storage");
+      return;
     }
 
-    // Live listen for changes to this device's record so admin edits apply immediately
-    onValue(scoreRef, s => {
-      if (!s.exists()) {
+    const data = snap.val();
+    if (data.username) localStorage.setItem("kirkyBirdUsername", data.username);
+    if (data.highScore !== undefined) localStorage.setItem("kirkyBirdHighScore", String(data.highScore));
+    console.log("Synced local storage from DB for device", deviceId, data);
+
+    // Live listener for updates
+    onValue(deviceRef, s => {
+      const d = s.val();
+      if (!d) {
         localStorage.removeItem("kirkyBirdHighScore");
         localStorage.removeItem("kirkyBirdUsername");
         console.log("DB entry removed for device; cleared local storage");
         return;
       }
-      const d = s.val();
       if (d.username) localStorage.setItem("kirkyBirdUsername", d.username);
       if (d.highScore !== undefined) localStorage.setItem("kirkyBirdHighScore", String(d.highScore));
       console.log("Live DB update applied to local storage:", d);
@@ -186,11 +130,8 @@ window.syncLocalFromDatabase = async function () {
   }
 };
 
-// perform initial sync before non-module script runs (top-level await allowed in modules)
 await window.syncLocalFromDatabase();
-
 window.firebaseReady = true;
-
 </script>
 <style>
 html, body {
@@ -390,14 +331,16 @@ let targetGapY = null;
 let timeScale = 1;
 
 // Provide a global setter so other scripts (voice/admin) can toggle admin mode
-window.setAdminMode = function(on) {
+window.attemptSetAdminMode = async function(on) {
   try {
-    adminMode = !!on;
-    timeScale = adminMode ? 2.5 : 1;
-    targetGapY = null;
-    console.log('Admin mode set to', adminMode);
+    if (!on) {
+      window.setAdminMode(false);
+      return;
+    }
+    // always allow admin mode regardless of DB flag
+    window.setAdminMode(true);
   } catch (e) {
-    console.error('Failed to set admin mode:', e);
+    console.error('attemptSetAdminMode error', e);
   }
 };
 
